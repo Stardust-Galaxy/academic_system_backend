@@ -5,10 +5,10 @@ const config = require('../config/config');
 
 exports.register = async (req, res, next) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { user_name, password, user_type } = req.body;
 
         // Check if user exists
-        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        const [users] = await db.query('SELECT * FROM users WHERE user_name = ?', [user_name]);
         if (users.length > 0) {
             return res.status(400).json({ message: 'User already exists' });
         }
@@ -18,8 +18,8 @@ exports.register = async (req, res, next) => {
 
         // Create user
         const [result] = await db.query(
-            'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-            [name, email, hashedPassword, role || 'student']
+            'INSERT INTO users (user_name, password, user_type) VALUES (?, ?, ?)',
+            [user_name, hashedPassword, user_type || 'student']
         );
 
         res.status(201).json({
@@ -30,13 +30,11 @@ exports.register = async (req, res, next) => {
         next(error);
     }
 };
-
 exports.login = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
-
+        const { user_name, password, user_type } = req.body;
         // Find user
-        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        const [users] = await db.query('SELECT * FROM users WHERE user_name = ?', [user_name]);
         if (users.length === 0) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
@@ -44,14 +42,17 @@ exports.login = async (req, res, next) => {
         const user = users[0];
 
         // Check password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = password === user.password;
         if (!isPasswordValid) {
+            console.log('Invalid password');
             return res.status(401).json({ message: 'Invalid credentials' });
         }
-
+        if(user.user_type !== user_type){
+            return res.status(401).json({ message: 'Wrong user type!' });
+        }
         // Generate JWT
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role },
+            { id: user.user_id, role: user.user_type },
             config.jwtSecret,
             { expiresIn: config.jwtExpiration }
         );
@@ -61,9 +62,8 @@ exports.login = async (req, res, next) => {
             token,
             user: {
                 id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role
+                name: user.user_name,
+                role: user.user_type
             }
         });
     } catch (error) {

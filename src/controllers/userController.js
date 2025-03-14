@@ -42,7 +42,7 @@ exports.login = async (req, res, next) => {
         const user = users[0];
 
         // Check password
-        const isPasswordValid = password === user.password;
+        const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             console.log('Invalid password');
             return res.status(401).json({ message: 'Invalid credentials' });
@@ -70,3 +70,47 @@ exports.login = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.resetPassword = async (req, res, next) => {
+    try {
+        const { user_name, user_type, new_password } = req.body;
+
+        // Check if user exists
+        const [users] = await db.query('SELECT * FROM users WHERE user_name = ?', [user_name]);
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        // Hash password
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+
+        // Update password
+        await db.query('UPDATE users SET password = ? WHERE user_name = ?', [hashedPassword, user_name]);
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.verifyPassword = async (req, res, next) => {
+    try {
+        const { user_name, user_type, password } = req.body;
+
+        // Check if user exists
+        const [users] = await db.query('SELECT * FROM users WHERE user_name = ?', [user_name]);
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const user = users[0];
+
+        // Check password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Invalid password' });
+        }
+        res.status(200).json({ message: 'Password verified successfully' });
+    } catch (error) {
+        next(error);
+    }
+}

@@ -117,7 +117,8 @@ exports.addSection = async (req, res, next) => {
 
 exports.updateSection = async (req, res, next) => {
     try {
-        const { course_id, sec_id, semester, year, building, room_number, time_slot_id } = req.body;
+
+        const {course_id, sec_id, semester, year, building, room_number, time_slot_id } = req.body;
 
         await db.query(
             'UPDATE sections SET building = ?, room_number = ?, time_slot_id = ? WHERE course_id = ? AND sec_id = ? AND semester = ? AND year = ?',
@@ -197,10 +198,10 @@ exports.addGrade = async (req, res, next) => {
 
 exports.updateGrade = async (req, res, next) => {
     try {
-        const { grade } = req.body;
+        const { student_id, course_id, sec_id, semester, year, grade } = req.body;
         const id = req.params.id;
 
-        await db.query('UPDATE takes SET grade = ? WHERE ID = ?', [grade, id]);
+        await db.query('UPDATE takes SET grade = ? WHERE student_id = ? and course_id = ? and sec_id = ? and semester = ? and year = ?', [grade, student_id, course_id, sec_id, semester, year]);
 
         res.json({ success: true, message: 'Grade updated successfully' });
     } catch (error) {
@@ -210,8 +211,12 @@ exports.updateGrade = async (req, res, next) => {
 
 exports.deleteGrade = async (req, res, next) => {
     try {
-        const id = req.params.id;
-        await db.query('DELETE FROM takes WHERE ID = ?', [id]);
+        const student_id = req.params.student_id;
+        const course_id = req.params.course_id;
+        const sec_id = req.params.sec_id;
+        const semester = req.params.semester;
+        const year = req.params.year;
+        await db.query('UPDATE takes SET grade = null WHERE student_id = ? and course_id = ? and sec_id = ? and semester = ? and year = ?', [student_id, course_id, sec_id, semester, year]);
 
         res.json({ success: true, message: 'Grade record deleted successfully' });
     } catch (error) {

@@ -20,7 +20,7 @@ router.delete('/courses/:id', auth, adminAuth, adminController.deleteCourse);
 router.get('/sections', auth, adminAuth, adminController.getAllSections);
 router.get('/sections/:id', auth, adminAuth, adminController.getSectionById);
 router.post('/sections', auth, adminAuth, adminController.addSection);
-router.put('/sections/:id', auth, adminAuth, adminController.updateSection);
+router.put('/sections/:course_id/:sec_id/:semester/:year', auth, adminAuth, adminController.updateSection);
 router.delete('/sections/:courseId/:secId/:year/:semester', auth, adminAuth, adminController.deleteSection);
 
 // Grade management routes
@@ -28,7 +28,7 @@ router.get('/grades', auth, adminAuth, adminController.getAllGrades);
 router.get('/grades/student/:studentId', auth, adminAuth, adminController.getGradesByStudent);
 router.post('/grades', auth, adminAuth, adminController.addGrade);
 router.put('/grades/:id', auth, adminAuth, adminController.updateGrade);
-router.delete('/grades/:id', auth, adminAuth, adminController.deleteGrade);
+router.delete('/grades/:student_id/:course_id/:sec_id/:semester/:year', auth, adminAuth, adminController.deleteGrade);
 
 //Student management routes
 router.get('/students', auth, adminAuth, adminController.getAllStudents);

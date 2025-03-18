@@ -83,8 +83,20 @@ exports.deleteCourse = async (req, res, next) => {
 // Section Management
 exports.getAllSections = async (req, res, next) => {
     try {
-        const [sections] = await db.query('SELECT * FROM sections');
-        res.json({ success: true, data: sections });
+        // 调用存储过程（注意 mysql2 的结果结构）
+        const [results] = await db.query('CALL getSectionAndTeacher()');
+
+        /**
+         * 不同数据库驱动返回结构可能不同，典型情况：
+         * - MySQL 驱动返回格式: [resultSet, metadata]
+         * - 存储过程结果集通常位于 results[0]
+         */
+        const sectionsWithTeachers = results[0]; // 取第一个结果集
+
+        res.json({
+            success: true,
+            data: sectionsWithTeachers  // 返回包含教师信息的数据
+        });
     } catch (error) {
         next(error);
     }
@@ -102,11 +114,15 @@ exports.getSectionById = async (req, res, next) => {
 
 exports.addSection = async (req, res, next) => {
     try {
-        const { course_id, sec_id, semester, year, building, room_number, time_slot_id } = req.body;
+        const { course_id, sec_id, semester, year, building, room_number, time_slot_id,teacher_id,capacity } = req.body;
 
         await db.query(
-            'INSERT INTO sections (course_id, sec_id, semester, year, building, room_number, time_slot_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [course_id, sec_id, semester, year, building, room_number, time_slot_id]
+            'INSERT INTO sections (course_id, sec_id, semester, year, building, room_number, time_slot_id，capacity) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [course_id, sec_id, semester, year, building, room_number, time_slot_id,capacity]
+        );
+        await db.query(
+            'INSERT INTO teaches (teacher_id,course_id, sec_id, semester, year) VALUES (?, ?, ?, ?, ?)',
+            [teacher_id,course_id, sec_id, semester, year]
         );
 
         res.status(201).json({ success: true, message: 'Section added successfully' });
@@ -117,19 +133,31 @@ exports.addSection = async (req, res, next) => {
 
 exports.updateSection = async (req, res, next) => {
     try {
-
-        const {course_id, sec_id, semester, year, building, room_number, time_slot_id } = req.body;
+        const {
+            course_id, sec_id, semester, year, building, room_number, time_slot_id, teacher_id, capacity,
+            old_teacher_id  // Add this to your request body
+        } = req.body;
 
         await db.query(
-            'UPDATE sections SET building = ?, room_number = ?, time_slot_id = ? WHERE course_id = ? AND sec_id = ? AND semester = ? AND year = ?',
-            [building, room_number, time_slot_id, course_id, sec_id, semester, year]
+            'UPDATE sections SET building = ?, room_number = ?, time_slot_id = ?, capacity = ? WHERE course_id = ? AND sec_id = ? AND semester = ? AND year = ?',
+            [building, room_number, time_slot_id, capacity, course_id, sec_id, semester, year]
+        );
+
+        await db.query(
+            'DELETE FROM teaches WHERE teacher_id = ? AND course_id = ? AND sec_id = ? AND semester = ? AND year = ?',
+            [old_teacher_id, course_id, sec_id, semester, year]
+        );
+
+        await db.query(
+            'INSERT INTO teaches (teacher_id, course_id, sec_id, semester, year) VALUES (?, ?, ?, ?, ?)',
+            [teacher_id, course_id, sec_id, semester, year]
         );
 
         res.json({ success: true, message: 'Section updated successfully' });
     } catch (error) {
         next(error);
     }
-}
+};
 
 exports.deleteSection = async (req, res, next) => {
     try {
@@ -148,15 +176,8 @@ exports.deleteSection = async (req, res, next) => {
 // Grade Management
 exports.getAllGrades = async (req, res, next) => {
     try {
-        const [grades] = await db.query(`
-            SELECT t.student_id, t.student_id, s.student_name AS student_name, 
-                   t.course_id, c.course_name, t.sec_id, 
-                   t.semester, t.year, t.grade
-            FROM takes t
-            JOIN students s ON t.student_id = s.student_id
-            JOIN courses c ON t.course_id = c.course_id
-        `);
-
+        const [results] = await db.query(`CALL getAllGrades()`);
+        const grades = results[0];
         res.json({ success: true, data: grades });
     } catch (error) {
         next(error);
@@ -167,14 +188,8 @@ exports.getGradesByStudent = async (req, res, next) => {
     try {
         const studentId = req.params.student_id;
 
-        const [grades] = await db.query(`
-            SELECT t.student_id, t.course_id, c.course_name, t.sec_id, 
-                   t.semester, t.year, t.grade
-            FROM takes t
-            JOIN courses c ON t.course_id = c.course_id
-            WHERE t.student_id = ?
-        `, [studentId]);
-
+        const [results] = await db.query(`CALL getGradesByStudent(?)`, [studentId]);
+        const grades = results[0];
         res.json({ success: true, data: grades });
     } catch (error) {
         next(error);
@@ -374,6 +389,28 @@ exports.getAllTimeSlots = async (req, res, next) => {
     try {
         const [timeSlots] = await db.query('SELECT * FROM time_slots');
         res.json({ success: true, data: timeSlots });
+    } catch (error) {
+        next(error);
+    }
+};
+exports.getTeachers = async (req, res, next) => {
+    try {
+        const [teachers] = await db.query(`
+            SELECT 
+                t.teacher_id,
+                t.teacher_name,
+                t.dept_name,
+                t.salary,
+                t.tele,
+                t.user_id
+            FROM teachers t
+            ORDER BY t.teacher_id`
+        );
+
+        res.json({
+            success: true,
+            data: teachers
+        });
     } catch (error) {
         next(error);
     }

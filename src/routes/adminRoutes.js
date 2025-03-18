@@ -8,7 +8,7 @@ const router = express.Router();
 
 //Admin info routes
 router.get('/info', auth, adminAuth, adminController.getAdminInfo);
-
+router.get('/teachers', auth, adminAuth, adminController.getTeachers);
 // Course management routes
 router.get('/courses', auth, adminAuth, adminController.getAllCourses);
 router.get('/courses/:id', auth, adminAuth, adminController.getCourseById);
@@ -20,7 +20,7 @@ router.delete('/courses/:id', auth, adminAuth, adminController.deleteCourse);
 router.get('/sections', auth, adminAuth, adminController.getAllSections);
 router.get('/sections/:id', auth, adminAuth, adminController.getSectionById);
 router.post('/sections', auth, adminAuth, adminController.addSection);
-router.put('/sections/:course_id/:sec_id/:semester/:year', auth, adminAuth, adminController.updateSection);
+router.put('/sections/:course_id/:sec_id/:semester/:year/:capacity', auth, adminAuth, adminController.updateSection);
 router.delete('/sections/:courseId/:secId/:year/:semester', auth, adminAuth, adminController.deleteSection);
 
 // Grade management routes

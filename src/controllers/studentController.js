@@ -45,26 +45,8 @@ exports.getStudentSchedule = async (req, res, next) => {
         const student_id = students[0].student_id;
 
         // Get schedule data - joining tables to get complete information
-        const [schedules] = await db.query(`
-            SELECT c.course_id, c.course_name, c.dept_name, c.credits, 
-                   s.sec_id, s.semester, s.year, s.building, s.room_number,
-                   ts.day, ts.start_time, ts.end_time,
-                   tchs.teacher_id, tchs.teacher_name
-            FROM takes t
-            JOIN sections s ON t.course_id = s.course_id 
-                AND t.sec_id = s.sec_id 
-                AND t.semester = s.semester 
-                AND t.year = s.year
-            JOIN courses c ON t.course_id = c.course_id
-            LEFT JOIN time_slots ts ON s.time_slot_id = ts.time_slot_id
-            LEFT JOIN teaches tch ON s.course_id = tch.course_id
-                AND s.sec_id = tch.sec_id
-                AND s.semester = s.semester
-                AND s.year = s.year
-            LEFT JOIN teachers tchs ON tch.teacher_id = tchs.teacher_id
-            WHERE t.student_id = ?
-            ORDER BY ts.day, ts.start_time
-        `, [student_id]);
+        const [results] = await db.query(`CALL getStudentScheduleByStudentId(?)`, [student_id]);
+        const schedules = results[0];
         res.json({
             success: true,
             data: schedules
@@ -89,26 +71,9 @@ exports.getEnrolledCourses = async (req, res, next) => {
         const student_id = students[0].student_id;
 
         // Get enrolled courses
-        const [courses] = await db.query(`
-            SELECT c.course_id, c.course_name, c.dept_name, c.credits, 
-                   s.sec_id, s.semester, s.year, s.building, s.room_number,
-                   ts.day, ts.start_time, ts.end_time,
-                   tchs.teacher_id, tchs.teacher_name
-            FROM takes t
-            JOIN sections s ON t.course_id = s.course_id 
-                AND t.sec_id = s.sec_id 
-                AND t.semester = s.semester 
-                AND t.year = s.year
-            JOIN courses c ON t.course_id = c.course_id
-            LEFT JOIN time_slots ts ON s.time_slot_id = ts.time_slot_id
-            LEFT JOIN teaches tch ON s.course_id = tch.course_id
-                AND s.sec_id = tch.sec_id
-                AND s.semester = s.semester
-                AND s.year = tch.year
-            LEFT JOIN teachers tchs ON tch.teacher_id = tchs.teacher_id
-            WHERE t.student_id = ?
-            ORDER BY s.year, s.semester
-        `, [student_id]);
+        const [results] = await db.query(`CALL getEnrolledCoursesByStudentId(?)`, [student_id]);
+
+        const courses = results[0];
 
         res.json({
             success: true,
@@ -134,30 +99,11 @@ exports.getAvailableCourses = async (req, res, next) => {
 
         const student_id = students[0].student_id;
 
-        // Corrected SQL query
-        const [courses] = await db.query(`
-            SELECT c.course_id, c.course_name, c.dept_name, c.credits,
-                   s.sec_id, s.semester, s.year, s.building, s.room_number,
-                   ts.day, ts.start_time, ts.end_time,
-                   tchs.teacher_id, tchs.teacher_name
-            FROM sections s
-                     JOIN courses c ON s.course_id = c.course_id
-                     LEFT JOIN time_slots ts ON s.time_slot_id = ts.time_slot_id
-                     LEFT JOIN teaches tch ON s.course_id = tch.course_id
-                AND s.sec_id = tch.sec_id
-                AND s.semester = tch.semester
-                AND s.year = tch.year
-                     LEFT JOIN teachers tchs ON tch.teacher_id = tchs.teacher_id
-            WHERE NOT EXISTS (
-                SELECT 1 FROM takes t
-                WHERE t.student_id = ?
-                  AND t.course_id = s.course_id
-                  AND t.sec_id = s.sec_id
-                  AND t.semester = s.semester
-                  AND t.year = s.year
-            )
-            ORDER BY s.year, s.semester
-        `, [student_id]);
+        // Call the stored procedure instead of using inline SQL
+        const [results] = await db.query('CALL getAvailableCoursesByStudentId(?)', [student_id]);
+
+        // The results from a stored procedure come in the first element of the results array
+        const courses = results[0];
 
         res.json({
             success: true,
@@ -170,13 +116,13 @@ exports.getAvailableCourses = async (req, res, next) => {
 
 exports.enrollCourse = async (req, res, next) => {
     try {
-        const studentId = req.userData.id;
+        const userId = req.userData.id;
         const { course_id, sec_id, semester, year } = req.body;
-        console.log(course_id);
-        // First get student_id from students table using user_id
+
+        // Get student_id from students table
         const [students] = await db.query(
             'SELECT student_id FROM students WHERE user_id = ?',
-            [studentId]
+            [userId]
         );
 
         if (students.length === 0) {
@@ -185,30 +131,26 @@ exports.enrollCourse = async (req, res, next) => {
 
         const student_id = students[0].student_id;
 
-        // Check if course is already taken
-        const [existing] = await db.query(
-            'SELECT * FROM takes WHERE student_id = ? AND course_id = ? AND sec_id = ? AND year = ? AND semester = ?',
-            [student_id, course_id, sec_id, year, semester]
-        );
-
-        if (existing.length > 0) {
-            return res.status(400).json({ message: 'Course already taken' });
-        }
-
-        // Enroll student in course
-        const [result] = await db.query(
-            'INSERT INTO takes (student_id, course_id, sec_id, year, semester, grade) VALUES (?, ?, ?, ?, ?, ?)',
-            [student_id, course_id, sec_id, year, semester, null]
+        // Call the stored procedure
+        await db.query('CALL enrollCourse(?, ?, ?, ?, ?)',
+            [student_id, course_id, sec_id, semester, year]
         );
 
         res.status(201).json({
-            message: 'Course enrolled successfully',
-            takeId: result.insertId
+            success: true,
+            message: 'Course enrolled successfully'
         });
     } catch (error) {
+        // Handle specific errors thrown by the stored procedure
+        if (error.code === 'ER_SIGNAL_EXCEPTION') {
+            return res.status(400).json({
+                success: false,
+                message: error.sqlMessage
+            });
+        }
         next(error);
     }
-}
+};
 
 exports.dropCourse = async (req, res, next) => {
     try {
@@ -227,19 +169,23 @@ exports.dropCourse = async (req, res, next) => {
         const student_id = students[0].student_id;
 
         // Drop course
-        const [result] = await db.query(
-            'DELETE FROM takes WHERE student_id = ? AND course_id = ? AND sec_id = ? AND year = ? AND semester = ?',
-            [student_id, course_id, sec_id, year, semester]
+        await db.query('CALL dropCourse(?, ?, ?, ?, ?)',
+            [student_id, course_id, sec_id, semester, year]
         );
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Course not found' });
-        }
-
-        res.json({
+        res.status(201).json({
+            success: true,
             message: 'Course dropped successfully'
-        });
+        })
+
     } catch (error) {
+        // Handle specific errors thrown by the stored procedure
+        if (error.code === 'ER_SIGNAL_EXCEPTION') {
+            return res.status(400).json({
+                success: false,
+                message: error.sqlMessage
+            });
+        }
         next(error);
     }
 }
@@ -260,27 +206,8 @@ exports.getGrades = async (req, res, next) => {
         const student_id = students[0].student_id;
 
         // Get grades
-        const [grades] = await db.query(`
-            SELECT c.course_id, c.course_name, c.dept_name, c.credits, 
-                   s.sec_id, s.semester, s.year, s.building, s.room_number,
-                   ts.day, ts.start_time, ts.end_time,
-                   tchs.teacher_id, tchs.teacher_name, t.grade
-            FROM takes t
-            JOIN sections s ON t.course_id = s.course_id 
-                AND t.sec_id = s.sec_id 
-                AND t.semester = s.semester 
-                AND t.year = s.year
-            JOIN courses c ON t.course_id = c.course_id
-            LEFT JOIN time_slots ts ON s.time_slot_id = ts.time_slot_id
-            LEFT JOIN teaches tch ON s.course_id = tch.course_id
-                AND s.sec_id = tch.sec_id
-                AND s.semester = tch.semester
-                AND s.year = tch.year
-            LEFT JOIN teachers tchs ON tch.teacher_id = tchs.teacher_id
-            WHERE t.student_id = ?
-            ORDER BY s.year, s.semester
-        `, [student_id]);
-
+        const [results] = await db.query(`CALL getStudentGradesByStudentId(?)`, [student_id]);
+        const grades = results[0];
         res.json({
             success: true,
             data: grades

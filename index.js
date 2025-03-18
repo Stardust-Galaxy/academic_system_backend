@@ -5,6 +5,7 @@ require('dotenv').config();
 const userRoutes = require('./src/routes/userRoutes');
 const studentRoutes = require('./src/routes/studentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const teacherRoutes = require('./src/routes/teacherRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 
 const app = express();
@@ -19,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/users', userRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/teachers', teacherRoutes);
 // Health check route
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'Server is running' });

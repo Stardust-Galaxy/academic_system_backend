@@ -1,7 +1,7 @@
 const express = require('express');
-const teacherController = require('../../../../WeChat Files/wxid_fd0iiaysolqp22/FileStorage/File/2025-03/academic_system_backend-main(1)/academic_system_backend-main/src/controllers/teacherController');
-const auth = require('../../../../WeChat Files/wxid_fd0iiaysolqp22/FileStorage/File/2025-03/academic_system_backend-main(1)/academic_system_backend-main/src/middleware/auth');
-const teacherAuth = require('../../../../WeChat Files/wxid_fd0iiaysolqp22/FileStorage/File/2025-03/academic_system_backend-main(1)/academic_system_backend-main/src/middleware/teacherAuth');
+const teacherController = require('../controllers/teacherController');
+const auth = require('../middleware/auth');
+const teacherAuth = require('../middleware/teacherAuth');
 
 const router = express.Router();
 

@@ -62,7 +62,7 @@ exports.getTeacherCourses = async (req, res, next) => {
 // 获取课程的学生
 exports.getCourseStudents = async (req, res, next) => {
     try {
-        const { courseId, secId,semester,year } = req.params;
+        const { courseId, secId, semester,year } = req.params;
         console.log(courseId);
         const [results] = await db.query(`CALL getCourseStudents(?, ?, ?, ?)`,
             [courseId, secId, semester, year]
